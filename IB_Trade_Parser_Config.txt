@@ -1,0 +1,24 @@
+{
+  "BaseCurr": "EUR",
+  "DefaultConvCurr": "USD",
+  "CurrConvXML": "valuuttakurssit.aspx.xml",
+  "HankintamenoBasic": 0.2,
+  "HankintamenoYears": 10,
+  "HankintamenoExt": 0.4,
+  "UsedCurr": [   
+    {"Ticker": "test_USD", "Curr": "USD"},
+    {"Ticker": "test_JPY", "Curr": "JPY"}
+  ],
+  "Exchanges": [
+    {"Exch": "NYSE", "Curr": "USD" },
+    {"Exch": "DRCTEDGE", "Curr": "USD" },
+    {"Exch": "NITERTL", "Curr": "USD" },
+    {"Exch": "IBKRATS", "Curr": "USD" },
+    {"Exch": "ISLAND", "Curr": "USD" },
+    {"Exch": "DARK", "Curr": "USD" },
+    {"Exch": "EDGEA", "Curr": "USD" },
+    {"Exch": "MM", "Curr": "USD" },
+    {"Exch": "BEX", "Curr": "USD" },
+    {"Exch": "BYX", "Curr": "USD" }
+  ]
+}
