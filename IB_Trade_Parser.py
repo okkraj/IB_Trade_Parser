@@ -169,17 +169,19 @@ def CalculateProfit( TradeList ): # input: list of 'HtmlLine'-lists, output: lis
         SellSingleBase = Decimal(0)
         for i in trade: # squeeze closed slots into one (1 sell & 1 buy )
             Currency = GetCurrency(i.Ticker)
-            SingleBase = i.Price/GetRate(i.Date, Currency, root) # 1 QTY in Base
+            rate = GetRate(i.Date, Currency, root)
+            SingleBase = i.Price/rate # 1 QTY in Base
             valueBase = SingleBase*abs(i.QTY) # make all positive despite of QTY
+            feeBase = i.Fee/rate # fee as base currency
             if i.QTY < 0: # selling
                 SellValue = valueBase # store
                 SellSingleBase = SingleBase
                 BuyValue = Decimal(0) # reset here
-                SellFee = i.Fee # if using hankintameno-olettama, line part of sell fee needs to be substracted from this
-                PartialSellFee = Decimal(i.Fee/(len(trade)-1)) # -1 == this sell item, residual: part of this buy line from all buy lines 
+                SellFee = feeBase # if using hankintameno-olettama, line part of sell fee needs to be substracted from this
+                PartialSellFee = Decimal(feeBase/(len(trade)-1)) # -1 == this sell item, residual: part of this buy line from all buy lines 
             else:   # buying
-                BuyFees += i.Fee # sum buy fees
-                valueBase += i.Fee # add fee for this buy slot to minimize profit                
+                BuyFees += feeBase # sum buy fees
+                valueBase += feeBase # add fee for this buy slot to minimize profit                
                 SlotSell = SellSingleBase*abs(i.QTY) # no fee here, "hankintameno" cannot use it
                 if (SlotSell-PartialSellFee) > (valueBase): # Making profit with fee's, consider "hankintameno"                
                     # Calculate "hankintameno"
@@ -190,7 +192,7 @@ def CalculateProfit( TradeList ): # input: list of 'HtmlLine'-lists, output: lis
                     if HankintaMeno > (valueBase+PartialSellFee): # Use hankintameno if bigger -> less profit for taxing  
                         valueBase = HankintaMeno # replace buy price with hankintameno price
                         # with hankintameno cannot substract fee's remove those from both buy & sell
-                        BuyFees -= i.Fee # remove initially added purchase fee for this slot
+                        BuyFees -= feeBase # remove initially added purchase fee for this slot
                         SellFee -= PartialSellFee # substract this line's part from the sell fee
                 BuyValue += valueBase # Finally set this slot "purchase price"
 
