@@ -78,9 +78,9 @@ class MyHTMLParser(HTMLParser):
     
     def __init__(self):
         HTMLParser.__init__(self,)
-        self.tr = False # tr-tag found on html
-        self.sell = False # row-sum text found in html
-        self.buy = False # closed-slot text found in html
+        self.tr = False # 'tr'-tag found in html
+        self.sell = False # 'row-summary' text found in html
+        self.buy = False # 'closed-slot' text found in html
         self.tdcnt = 0
         self.trades = [] # list of lists
         self.trade = [] # single sell, possible multiple purhaces to fill it
@@ -100,11 +100,10 @@ class MyHTMLParser(HTMLParser):
         row = HtmlLine( Ticker=self.company if Sell else self.trade[0].Ticker,
                         Date=self.temp[0], QTY=self.temp[1], Price=self.temp[2], Fee=self.Fee,
                         Exchange=self.exchange if Sell else self.trade[0].Exchange )        
-        if (Sell and row.QTY >= 0) or (not Sell and row.QTY < 0):
+        if (Sell and row.QTY >= 0) or (not Sell and row.QTY <= 0):
             raise Exception("QTY is invalid") # sanity check 
         self.trade.append( row )
         print( '{0.Ticker}, {0.Date}, {0.QTY}, {0.Price}, {0.Fee}, {0.Exchange}'.format(row) )
-        self.temp = () # clear for next line
         for i in self.trade:
             QTY = i.QTY if i is self.trade[0] else QTY + i.QTY # Decrease buys from sell (sell is negative so this goes towards zero)
             if QTY == 0: # all buy rows found -> 1 Sell trade completely processed       
@@ -120,15 +119,18 @@ class MyHTMLParser(HTMLParser):
                 i=attrs[0]
                 if i[0] == "class":
                     if i[1] == "row-summary":
-                        self.sell = True
+                        self.sell = True # could be also splitted purchase, need to read td's to determine it
         if tag == "td":
             self.tdcnt += 1
 
     def handle_endtag(self, tag):
-        if tag == "tr":          
+        if tag == "tr":
+            if self.sell and self.buy:
+                raise Exception("sell and buy both enabled") # sanity check 
             if self.sell or self.buy:                
                 self.ProcessLine(True if self.sell else False)
             self.tr, self.sell, self.buy = False, False, False
+            self.temp = () # clear for next line, clear here since some data may have been collected
             self.company = None # cannot be none
             self.exchange = None # can be none
 
@@ -146,6 +148,8 @@ class MyHTMLParser(HTMLParser):
             if self.tdcnt == 2:
                 self.temp += (GetDate( data.split(',')[0] ), ) # date
             if self.tdcnt == 4:
+                if self.sell and Decimal(data) >= 0: # this is actually purchase which has been splitted
+                    self.sell = False
                 self.temp += (Decimal(data), ) # QTY, there can be at least 0.5, sell has negative
             if self.tdcnt == 5:
                 self.temp += (Decimal(data), ) # Price
