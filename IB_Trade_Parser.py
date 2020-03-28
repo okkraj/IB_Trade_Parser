@@ -157,53 +157,112 @@ class MyHTMLParser(HTMLParser):
                 self.Fee = abs(Decimal(data)) # Comission/Fee (only in sell line) --- negative in HTML!!!
                 
 ##################END OF CLASS #################################                
-TradeSqueeze = namedtuple( 'SqueezedTrade', 'Ticker Date QTY TotalSell TotalBuy Profit SellFees BuyFees Currency' )
+TradeBase = namedtuple( 'Trades', 'Ticker SellDate BuyDate QTY SellPrice BuyPrice SellFee BuyFee Currency' )
 
-def CalculateProfit( TradeList ): # input: list of 'HtmlLine'-lists, output: list of 'TradeSqueeze'
-    ProfitList = []
-    
+def SplitHtmlToTradesAsBase( TradeList ):
+    TradelistAsBase = []
     for trade in TradeList:
-        BuyFees = Decimal(0)
-        SellValue = Decimal(0)
-        BuyValue = Decimal(0)
-        SellSingleBase = Decimal(0)
-        for i in trade: # squeeze closed slots into one (1 sell & 1 buy )
+        TradeBaseList = []
+        QTY = 0
+        SellBase = Decimal(0)
+        SellDate = ""
+        SellFeeBase = Decimal(0)
+        CurrencyUsed = ""
+        for i in trade:
             Currency = GetCurrency(i.Ticker)
             rate = GetRate(i.Date, Currency, root)
             SingleBase = i.Price/rate # 1 QTY in Base
             valueBase = SingleBase*abs(i.QTY) # make all positive despite of QTY
             feeBase = i.Fee/rate # fee as base currency
             if i.QTY < 0: # selling
-                SellValue = valueBase # store
-                SellSingleBase = SingleBase
-                BuyValue = Decimal(0) # reset here
-                SellFee = feeBase # if using hankintameno-olettama, line part of sell fee needs to be substracted from this
-                PartialSellFee = Decimal(feeBase/(len(trade)-1)) # -1 == this sell item, residual: part of this buy line from all buy lines 
+                QTY = i.QTY # negative
+                Trade = [] # reset, but not with .clear to preserve previous instance
+                CurrencyUsed = Currency
+                SellBase = SingleBase # 1 stock price
+                SellFeeBase = feeBase
+                SellDate = i.Date
             else:   # buying
-                BuyFees += feeBase # sum buy fees
-                valueBase += feeBase # add fee for this buy slot to minimize profit                
-                SlotSell = SellSingleBase*abs(i.QTY) # no fee here, "hankintameno" cannot use it
-                if (SlotSell-PartialSellFee) > (valueBase): # Making profit with fee's, consider "hankintameno"                
-                    # Calculate "hankintameno"
-                    Diff = GetYearDiff(i.Date, trade[0].Date)
-                    Percentage = Decimal(Config['HankintamenoBasic']) if Diff < Config['HankintamenoYears'] else Decimal(Config['HankintamenoExt'])
-                    HankintaMeno = SlotSell*Percentage                    
-                    # Hankintameno: pure_sell*percentage > buy+its fee+selling fee
-                    if HankintaMeno > (valueBase+PartialSellFee): # Use hankintameno if bigger -> less profit for taxing  
-                        valueBase = HankintaMeno # replace buy price with hankintameno price
-                        # with hankintameno cannot substract fee's remove those from both buy & sell
-                        BuyFees -= feeBase # remove initially added purchase fee for this slot
-                        SellFee -= PartialSellFee # substract this line's part from the sell fee
-                BuyValue += valueBase # Finally set this slot "purchase price"
+                QTY = QTY + i.QTY
+                if QTY > 0:
+                    raise Exception("QTY is invalid") # sanity check
+                if Currency != CurrencyUsed:
+                    raise Exception("Wrong currency") # sanity check
+                PartOfSellFee = Decimal(SellFeeBase/(len(trade)-1))
+                RowInBase = TradeBase( Ticker=i.Ticker, SellDate=SellDate, BuyDate=i.Date, QTY=abs(i.QTY),
+                                     SellPrice=SellBase*abs(i.QTY), BuyPrice=valueBase,
+                                     SellFee=PartOfSellFee, BuyFee=feeBase, Currency=CurrencyUsed )                
+                TradeBaseList.append( RowInBase ) # append to list
+                
+        TradelistAsBase.append( TradeBaseList ) # append list to list -> list of lists
+    return TradelistAsBase
 
-        SellValue = (SellValue - SellFee) if SellValue > SellFee else Decimal(0) # substact fee to minimize profit
-        # After squeeze - Store trade summary (i.e. 1 trade with same QTY buy&sell)
-        x = TradeSqueeze( Ticker=trade[0].Ticker, Date=trade[0].Date, QTY=abs(trade[0].QTY),
-                          TotalSell=SellValue, TotalBuy=BuyValue, Profit=abs(SellValue)-BuyValue,
-                          SellFees=SellFee, BuyFees=BuyFees, Currency = Currency)
-        ProfitList.append( x )
+def HankintaMeno( BaseSell, BuyDate, SellDate ):             
+    # Calculate "hankintameno"
+    Diff = GetYearDiff(BuyDate, SellDate)
+    Percentage = Decimal(Config['HankintamenoBasic']) if Diff < Config['HankintamenoYears'] else Decimal(Config['HankintamenoExt'])
+    return Decimal(BaseSell*Percentage)                    
 
+def CalcProfit( ProfitBase ):
+    # Hankintameno: no fees can be applied
+    HankintamenoProfit = ProfitBase.SellPrice - HankintaMeno( ProfitBase.SellPrice, ProfitBase.BuyDate, ProfitBase.SellDate )
+    RegularProfit = (ProfitBase.SellPrice-ProfitBase.SellFee)-(ProfitBase.BuyPrice+ProfitBase.BuyFee)
+
+    Profit = RegularProfit
+    
+    UsingHankintaMeno = False;
+    if RegularProfit > 0:   # making money, check if hankintameno is better
+        if HankintamenoProfit < RegularProfit:
+            Profit = HankProfit
+            UsingHankintaMeno = True;
+        
+    return Profit, UsingHankintaMeno
+
+TradeSqueeze = namedtuple( 'SqueezedTrade', 'Ticker Date QTY TotalSell TotalBuy Profit SellFees BuyFees Currency' )
+
+def squeezeTrade( SqueezeList ):
+    if not SqueezeList:
+        raise Exception("List is empty") # sanity check
+
+    tot_QTY = sum(i.QTY for i in SqueezeList)
+    tot_Sell = sum(i.TotalSell for i in SqueezeList)
+    tot_Buy = sum(i.TotalBuy for i in SqueezeList)
+    tot_SellFee = sum(i.SellFees for i in SqueezeList)
+    tot_BuyFee = sum(i.BuyFees for i in SqueezeList)
+    tot_Profit = sum(i.Profit for i in SqueezeList)
+
+    x = TradeSqueeze( Ticker=SqueezeList[0].Ticker, Date=SqueezeList[0].Date, QTY=tot_QTY,
+                      TotalSell=tot_Sell, TotalBuy=tot_Buy, Profit=tot_Profit,
+                      SellFees=tot_SellFee, BuyFees=tot_BuyFee, Currency = SqueezeList[0].Currency)
+
+    return x  
+
+def CalculateProfitInBase( BaseTradelist ):
+    ProfitList = []
+
+    for trade in BaseTradelist:
+        TradeProfit = []
+        TradeLoss = []
+        for i in trade: # divide closed slots into profit and loss lines
+            NetProfit, hankmeno = CalcProfit( i )
+
+            x = TradeSqueeze( Ticker=i.Ticker, Date=i.SellDate, QTY=i.QTY,
+                              TotalSell=i.SellPrice, TotalBuy=i.BuyPrice, Profit=NetProfit,
+                              SellFees=i.SellFee if not hankmeno else Decimal(0), BuyFees=i.BuyFee if not hankmeno else Decimal(0), Currency = i.Currency)
+            if hankmeno:
+                print( 'Hankintameno used: {0.Ticker}, {0.Date}, {0.QTY}QTY, {0.TotalSell:.2f}{1}, {0.TotalBuy:.2f}{1},{0.Profit:.2f}{1}, {0.SellFees:.2f}{1}, {0.BuyFees:.2f}{1}, {0.Currency}'.format(x, base) )
+            if x.Profit >= 0:                
+                TradeProfit.append( x )
+            else:
+                TradeLoss.append( x )
+
+        # squeeze profits and losses to one liners per trade
+        if TradeProfit:
+            ProfitList.append( squeezeTrade( TradeProfit ) )
+        if TradeLoss:
+            ProfitList.append( squeezeTrade( TradeLoss ) )
+            
     return ProfitList
+    
 ######################################################
 
 with open(HtmlFile, 'r') as myfile:
@@ -212,9 +271,17 @@ with open(HtmlFile, 'r') as myfile:
  
 parser = MyHTMLParser()
 parser.feed(HTMLdata)
-print( "Found:", len(parser.trades), "trades, in", parser.Linesfound, "Lines. Squeezing trades to one liners..." )
+print( "Found:", len(parser.trades), "trades, in", parser.Linesfound, "Lines. Generating trades in base currency..." )
 
-List = CalculateProfit( parser.trades )
+TradesAsBase = SplitHtmlToTradesAsBase( parser.trades )
+print( 40*'=', "\nList of trades in base currency:", '\n'+str(TradesAsBase[0][0]._fields), "\n", 40*'=' )
+for trade in TradesAsBase:
+    for i in trade:
+        print( '{0.Ticker}, {0.SellDate}, {0.BuyDate}, {0.QTY}, {0.SellPrice:.2f}{1}, {0.BuyPrice:.2f}{1}, {0.SellFee:.2f}{1}, {0.BuyFee:.2f}{1}, {0.Currency}'.format(i, base) )
+    print( 40*'=' )
+
+print( "Squeezing trades to one liners..." )
+List = CalculateProfitInBase( TradesAsBase )
 
 ######## All done - just print the content out ########
 
@@ -222,15 +289,50 @@ print( 40*'=', '\n'+str(List[0]._fields) ) # print tuple field names
 for i in List:  
     print( '{0.Ticker}, {0.Date}, {0.QTY}QTY, {0.TotalSell:.2f}{1}, {0.TotalBuy:.2f}{1}, {0.Profit:.2f}{1}, {0.SellFees:.2f}{1}, {0.BuyFees:.2f}{1}, {0.Currency}'.format(i, base) )
 
-print( 40*'=', "\nCombining trades to one:" )
-TotalSell = sum([i.TotalSell for i in List])
-TotalBuy = sum([i.TotalBuy for i in List])
-ProfitCheck = sum([i.Profit for i in List])
-TotalFees = sum([i.SellFees for i in List]) + sum([i.BuyFees for i in List])
+## Generate single profit and single loss line of content
+SqueezedProfitLine = namedtuple( 'ProfitLine', 'Profit Sell Buy SellFee BuyFee' )
+def SeparateList( List, CheckProfit ):
+    Separated = []
+    for i in List:
+        process = False
+        if CheckProfit:
+            if i.Profit > 0:
+                process = True
+        else:
+            if i.Profit < 0:
+                process = True
 
-Profit = abs(TotalSell)-TotalBuy
-print( "TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}".format(base, TotalSell, TotalBuy, Profit) )
-if round(Profit,2) != round(ProfitCheck,2):
-    raise Exception("Profit check failed!!! {} != {}".format(Profit, ProfitCheck))
+        if process:
+            Separated.append(i)
+    
+    return SqueezedProfitLine( Profit =sum([i.Profit for i in Separated]),
+                               Sell   =sum([i.TotalSell for i in Separated]),
+                               Buy    =sum([i.TotalBuy for i in Separated]),
+                               SellFee=sum([i.SellFees for i in Separated]),
+                               BuyFee =sum([i.BuyFees for i in Separated]) )          
+
+def GetProfit( List ):
+    return SeparateList( List, True ) 
+
+def GetLoss( List ):
+    return SeparateList( List, False )    
+
+print( 40*'=', "\nCombining trades to one profit and one loss line:" )
+Profit = GetProfit( List )
+Loss = GetLoss( List )
+
+print( "Profits: TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}".format(base, Profit.Sell, Profit.Buy, Profit.Profit) )
+print( "Losses:  TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}".format(base, Loss.Sell, Loss.Buy, Loss.Profit) )
+
+# check profit calculations
+P_check = Profit.Sell-(Profit.SellFee + Profit.Buy + Profit.BuyFee)
+L_check = Loss.Sell-(Loss.SellFee + Loss.Buy + Loss.BuyFee)
+
+if round(Profit.Profit,2) != round(P_check,2):
+    raise Exception("Profit check failed!!! {} != {}".format(P_Profit, P_check))
+if round(Loss.Profit,2) != round(L_check,2):
+    raise Exception("Profit check failed!!! {} != {}".format(L_Profit, L_check))
+
+TotalFees = sum([i.SellFees for i in List]) + sum([i.BuyFees for i in List])
 print( 40*'=' )
 print( "Info about fees... Total: {1:.2f}{0}, -> {2:.2f}{0} per line".format( base, TotalFees, TotalFees/parser.Linesfound) )
