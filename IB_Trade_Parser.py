@@ -1,6 +1,10 @@
 import sys
+import locale
 from decimal import Decimal
 from collections import namedtuple
+
+# IB report is in US format: values are like this 1,000,000.00
+locale.setlocale(locale.LC_ALL, 'en_us')
 
 if len(sys.argv) == 1:  # no args, use example html
     sys.argv = [sys.argv[0], 'example.html']
@@ -148,6 +152,7 @@ class MyHTMLParser(HTMLParser):
             if self.tdcnt == 2:
                 self.temp += (GetDate( data.split(',')[0] ), ) # date
             if self.tdcnt == 4:
+                data = locale.atof(data, Decimal) # for some reason with this value 3,800 throws an error (perhaps because there is no '.' like 3,800.00)
                 if self.sell and Decimal(data) >= 0: # this is actually purchase which has been splitted
                     self.sell = False
                 self.temp += (Decimal(data), ) # QTY, there can be at least 0.5, sell has negative
