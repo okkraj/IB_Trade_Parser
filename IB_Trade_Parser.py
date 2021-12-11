@@ -15,7 +15,7 @@ if len(arguments) != 1:
     sys.exit(1)
 
 import os
-# scriptname without post fix + confif post fix
+# scriptname without post fix + config post fix
 ConfigFile = os.path.splitext(sys.argv[0])[0]+'_Config.txt' 
 
 import json
@@ -102,8 +102,14 @@ class MyHTMLParser(HTMLParser):
         self.Fee = 0
         self.Linesfound = 0
         self.exchange = None
+        self.pendingSell = 0
 
     def ProcessLine(self, Sell):
+        if Sell and self.exchange == '-':
+            self.pendingSell = self.temp[1] # store and exit, next lines determines exchanges
+            return
+        elif Sell and self.exchange == 'IDEALFX':
+            return # ignore currency conversions
         self.Linesfound += 1
         if Sell and self.trade: # list should be empty at this phase
             raise Exception("New sell but list not empty")
@@ -122,18 +128,23 @@ class MyHTMLParser(HTMLParser):
             QTY = i.QTY if i is self.trade[0] else QTY + i.QTY # Decrease buys from sell (sell is negative so this goes towards zero)
             if QTY == 0: # all buy rows found -> 1 Sell trade completely processed       
                 self.trades.append( self.trade )
+                if self.pendingSell != 0:
+                    self.pendingSell -= self.trade[0].QTY # -QTY - -QTY => goes towards zero
                 self.trade = [] # not using .clear(), create new object instead to preserve old list in list of lists
-                print( '='*40 )
+                print( '='*40 )                
     
     def handle_starttag(self, tag, attrs):
         if tag == "tr":
             self.tr = True
             self.tdcnt = 0
             if len(attrs) > 0:
-                i=attrs[0]
+                i=attrs[0]                
                 if i[0] == "class":
-                    if i[1] == "row-summary":
-                        self.sell = True # could be also splitted purchase, need to read td's to determine it
+                        if i[1] == "row-summary":
+                            self.sell = True # could be also splitted purchase, need to read td's to determine it
+            elif self.pendingSell != 0:
+                self.sell = True # could be also splitted purchase, need to read td's to determine it
+                        
         if tag == "td":
             self.tdcnt += 1
 
@@ -206,7 +217,7 @@ def SplitHtmlToTradesAsBase( TradeList ):
                 PartOfSellFee = Decimal(SellFeeBase/(len(trade)-1))
                 RowInBase = TradeBase( Ticker=i.Ticker, SellDate=SellDate, BuyDate=i.Date, QTY=abs(i.QTY),
                                      SellPrice=SellBase*abs(i.QTY), BuyPrice=valueBase,
-                                     SellFee=PartOfSellFee, BuyFee=feeBase, Currency=CurrencyUsed )                
+                                     SellFee=PartOfSellFee, BuyFee=feeBase, Currency=CurrencyUsed )
                 TradeBaseList.append( RowInBase ) # append to list
                 
         TradelistAsBase.append( TradeBaseList ) # append list to list -> list of lists
