@@ -112,7 +112,7 @@ class MyHTMLParser(HTMLParser):
         if Sell and self.company is None:
             raise Exception("Company parsing failed") # sanity check        
         row = HtmlLine( Ticker=self.company if Sell else self.trade[0].Ticker,
-                        Date=self.temp[0], QTY=self.temp[1], Price=self.temp[2], Fee=self.Fee,
+                        Date=self.temp[0], QTY=self.temp[1], Price=self.temp[2], Fee=self.Fee, # if buy row, the fee is in Price itself
                         Exchange=self.exchange if Sell else self.trade[0].Exchange )        
         if (Sell and row.QTY >= 0) or (not Sell and row.QTY <= 0):
             raise Exception("QTY is invalid") # sanity check 
@@ -145,6 +145,7 @@ class MyHTMLParser(HTMLParser):
                 self.ProcessLine(True if self.sell else False)
             self.tr, self.sell, self.buy = False, False, False
             self.temp = () # clear for next line, clear here since some data may have been collected
+            self.Fee = 0
             self.company = None # cannot be none
             self.exchange = None # can be none
 
@@ -188,7 +189,7 @@ def SplitHtmlToTradesAsBase( TradeList ):
             rate = GetRate(i.Date, Currency, roots)
             SingleBase = i.Price/rate # 1 QTY in Base
             valueBase = SingleBase*abs(i.QTY) # make all positive despite of QTY
-            feeBase = i.Fee/rate # fee as base currency
+            feeBase = i.Fee/rate # fee as base currency (for buy lines, the fee is 0 and included in i.Price)
             if i.QTY < 0: # selling
                 QTY = i.QTY # negative
                 Trade = [] # reset, but not with .clear to preserve previous instance
