@@ -359,7 +359,3 @@ if round(Profit.Profit,2) != round(P_check,2):
     raise Exception("Profit check failed!!! {} != {}".format(P_Profit, P_check))
 if round(Loss.Profit,2) != round(L_check,2):
     raise Exception("Profit check failed!!! {} != {}".format(L_Profit, L_check))
-
-TotalFees = sum([i.SellFees for i in List]) + sum([i.BuyFees for i in List])
-print( 40*'=' )
-print( "Info about fees... Total: {1:.2f}{0}, -> {2:.2f}{0} per line".format( base, TotalFees, TotalFees/parser.Linesfound) )
