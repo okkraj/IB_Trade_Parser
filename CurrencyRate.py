@@ -13,6 +13,8 @@ class Rate():
         ending = '.' + XmlFiles[1]
         XmlFiles = XmlFiles[0]
         XmlFiles = glob.glob( './' + XmlFiles + '*' + ending )
+        if len(XmlFiles) == 0:
+            raise Exception("No XML files found") # sanity check
         self.roots = []
         for i in XmlFiles:
             self.roots.append( ET.parse(i).getroot() )
