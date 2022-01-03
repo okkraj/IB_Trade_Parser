@@ -30,6 +30,10 @@ base = Config['BaseCurr'].upper() # currency used in reports
 
 ##### =====> all basic stuff checked & set
 
+###### Create currency converter
+import CurrencyRate
+Rate = CurrencyRate.Rate(XmlFile)
+
 ###### Solve needed currency based on exchange or ticker
 def GetCurrency( Ticker, Exchange = None ):
     target = Config['DefaultConvCurr'] # by default use user defined currency
@@ -48,34 +52,8 @@ def GetCurrency( Ticker, Exchange = None ):
                 break  
     return (Config['BaseCurr']+'-'+target).upper() # construct nnn-yyy currency pair
 
-
-###### Currency handling
-import xml.etree.ElementTree as ET
-# Get all similar pattern XMLs
-XmlFiles = XmlFile.split('.', 1)
-ending = '.' + XmlFiles[1]
-XmlFiles = XmlFiles[0]
-import glob
-XmlFiles = glob.glob( './' + XmlFiles + '*' + ending )
-roots = []
-for i in XmlFiles:
-    roots.append( ET.parse(i).getroot() )
-
-def GetRate(Date, Currency, roots) :
-    OrigDate = Date
-    for root in roots: # go through all XML's
-        Date = OrigDate
-        while OrigDate - Date < timedelta(7): # search max 1 week
-            NS = {'ns': 'valuuttakurssit_short_xml_fi' }
-            # Look correct date (period) with given currency (rate) and expect it to exr-tag which has "value" field
-            for rate in root.iterfind( ".//ns:period[@value='%s']//ns:rate[@name='%s']/ns:exr[@value]" % (Date, Currency.upper()), NS ):
-                return Decimal(rate.get('value').replace(',','.'))
-            Date -= timedelta(1) # search into old dates direction
-    # Not found
-    raise Exception("Currency [{0}] not found near date {1} - ended {2}".format(Currency, OrigDate, Date))
-
 ###### Date handling
-from datetime import datetime, timedelta
+from datetime import datetime
 def GetDate( date_str ) :
     return datetime.strptime(date_str, '%Y-%m-%d' ).date()
 
@@ -197,7 +175,7 @@ def SplitHtmlToTradesAsBase( TradeList ):
         CurrencyUsed = ""
         for i in trade:
             Currency = GetCurrency(i.Ticker)
-            rate = GetRate(i.Date, Currency, roots)
+            rate = Rate.GetRate(i.Date, Currency)
             SingleBase = i.Price/rate # 1 QTY in Base
             valueBase = SingleBase*abs(i.QTY) # make all positive despite of QTY
             feeBase = i.Fee/rate # fee as base currency (for buy lines, the fee is 0 and included in i.Price)
