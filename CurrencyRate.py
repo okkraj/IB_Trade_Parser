@@ -19,7 +19,11 @@ class Rate():
         for i in XmlFiles:
             self.roots.append( ET.parse(i).getroot() )
             
-    def GetRate(self, Date, Currency) :
+    def GetRate(self, Date, DestCurrency, SrcCurrency=None ) :
+        Currency = DestCurrency
+        if SrcCurrency is not None:
+            Currency = DestCurrency+'-'+SrcCurrency
+        
         OrigDate = Date
         for root in self.roots: # go through all XML's
             Date = OrigDate
