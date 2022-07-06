@@ -53,45 +53,52 @@ with open(csv_file) as csv_file:
     now_price = 0
     close_price = 0
     
+    idx_currency = 0
+    idx_ticker = 1
+    idx_quantity = 2
+    idx_value = 3
+    idx_cost = 4
+    idx_date = 5
+    
     for row in csv.reader(csv_file, delimiter=','):
         if line_count == 0:
             #print(f'Column names are {", ".join(row)}')   
             if row != expected_names:
                 raise Exception("Header part names does not match") # sanity check 
         else:            
-            if row[5] == '':
+            if row[idx_date] == '':
                 if count != 0:
                     raise Exception("Previous item not fully parsed") # sanity check 
                 new_item = False                
-                currency = row[0]
-                ticker = row[1]
-                count = int(row[2])
-                position_value = Decimal(row[3])
-                cost = Decimal(row[4])
+                currency = row[idx_currency]
+                ticker = row[idx_ticker]
+                count = Decimal(row[idx_quantity])
+                position_value = Decimal(row[idx_value])
+                cost = Decimal(row[idx_cost])
                 
                 aq_price = 0
                 now_price = 0
                 rate = Rate.GetRate(report_date, 'EUR-'+currency)
                 close_price = Decimal( position_value / count ) / rate
             else:            
-                date = GetDate( row[5].split(',')[0] ) # date
+                date = GetDate( row[idx_date].split(',')[0] ) # date
                 
-                if row[0] != currency:
+                if row[idx_currency] != currency:
                     raise Exception("Wrong currency found") # sanity check
-                if row[1] != ticker:
+                if row[idx_ticker] != ticker:
                     raise Exception("Wrong ticker found") # sanity check
                 
                 rate = Rate.GetRate(date, 'EUR-'+currency)
-                eur_price = Decimal(row[4]) / rate
+                eur_price = Decimal(row[idx_cost]) / rate
                 
-                amount = int(row[2])
+                amount = Decimal(row[idx_quantity])
                 line_aq_price = eur_price * amount
                 line_now_price = close_price * amount
                 
                 aq_price += line_aq_price
                 now_price += line_now_price
                 
-                new_lines.append( [ticker, date, line_aq_price, line_now_price ] )
+                new_lines.append( [ticker, date, line_aq_price, line_now_price, amount ] )
                 
                 count -= amount                
                 if count < 0:
@@ -114,6 +121,7 @@ with open(csv_file) as csv_file:
     print( "\nOwn equity (70% rule, using current price if 70% of it is higher than aquisition price):" )
     OPO = 0
     for i in new_lines:
+        #print(f"{i[0]}: pcs {i[4]} {i[1]} {i[2]:.2f} {i[3]:.2f} profit {i[3]-i[2]:.2f}")
         now = i[3]*Decimal(0.7)
         aq = i[2]
         OPO += aq if aq > now else now
