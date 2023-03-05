@@ -72,6 +72,9 @@ def CheckOwnRules( OwnRules, sell_dict, transID ):
             if sell_dict['ID'] in i['lookupID']: # sell item ID should be marked into look up
                 if sell_dict['ticker'] == i['destination']: # then verify that ticker also matches               
                     return GenerateTrade(sell_dict['ticker'], str(abs(Decimal(sell_dict['pcs']))), i['date'], i['currency'], i['price'], i['comission_currency'], i['comission'], i['ID'] )
+        if i['type'] == "split": # if this type of item, expect certain data in other fields
+            pass # not processed check here
+                            
         # TODO: expand list with other corporate actions...
     return None
 
@@ -94,6 +97,20 @@ def BoughtSoldBeforeAfter( sell_item, purchase_item, ticker, date):
 def GetPurchasePrice( sell_item, purchase_item ):
     price = Decimal(purchase_item['price'])
     return price
+
+def CheckSplits( OwnRules, trade_dict ):
+    latest_date = None
+    for i in OwnRules:
+        if i['type'] == "split":
+            if trade_dict['ticker'] == i['ticker']:
+                date = trade_dict['date'] if latest_date == None else latest_date                  
+                if date < i['date']:                
+                    trade_dict['price'] = str( Decimal(trade_dict['price']) * Decimal(i['original']) / Decimal(i['new']) )                  
+                    #trade_dict['pcs'] = str( Decimal(trade_dict['pcs']) * Decimal(i['new']) / Decimal(i['original']) )
+                    ref_date = i['date']
+                    print( f"Found split for {trade_dict['ticker']} at {i['date']} ratio {Decimal(i['original'])} -> {Decimal(i['new'])}" )     
+    return trade_dict
+    
 
 ## go through CSV file
 import csv
@@ -197,9 +214,11 @@ for i in sell_list:
             if exists is None:
                 exists = CheckOwnRules( own_rules_list, i[0], j )
                 if exists is None:
-                    raise Exception(f"Transaction ID ({ID}) not exists") # sanity check
+                    raise Exception(f"Transaction ID ({j['ID']}) not exists") # sanity check
                 else:
                     print( f"Using own purchase rule for trade:\n{i[0]}\n--->{exists}" )
+                    
+            exists = CheckSplits( own_rules_list, exists )
             j['purchase'] = exists # add new dict item containing original purchase    
 
 # calculate profits
