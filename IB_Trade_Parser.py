@@ -326,8 +326,8 @@ print( 40*'=', "\nCombining trades to one profit and one loss line:" )
 Profit = GetProfit( List )
 Loss = GetLoss( List )
 
-print( "Profits: TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}".format(base, Profit.Sell, Profit.Buy, Profit.Profit) )
-print( "Losses:  TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}".format(base, Loss.Sell, Loss.Buy, Loss.Profit) )
+print( "Profits: TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}, Fees: {4:.2f}{0}".format(base, Profit.Sell, Profit.Buy, Profit.Profit, Profit.BuyFee+Profit.SellFee) )
+print( "Losses:  TotalSell: {1:.2f}{0}, TotalBuy: {2:.2f}{0}, Profit: {3:.2f}{0}, Fees: {4:.2f}{0}".format(base, Loss.Sell, Loss.Buy, Loss.Profit, Loss.BuyFee+Loss.SellFee) )
 
 # check profit calculations
 P_check = Profit.Sell-(Profit.SellFee + Profit.Buy + Profit.BuyFee)
