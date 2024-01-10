@@ -23,7 +23,7 @@ with open(ConfigFile, 'r') as File:
     Config = json.loads(File.read())
     File.close()
 
-XmlFile = Config['CurrConvXML']
+XmlFile = Config['CurrConvXML'] if Config['CurrConvXML'] != "" else None
 HtmlFile = arguments[0]
 
 base = Config['BaseCurr'].upper() # currency used in reports

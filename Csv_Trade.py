@@ -6,12 +6,12 @@ from decimal import Decimal
 locale.setlocale(locale.LC_ALL, 'en_us')
 
 arguments = sys.argv[1:]
-if len(arguments) < 2:
-    print( "2 args (csv to parse and currency xml) please" )
+if len(arguments) < 1:
+    print( "1 args (csv to parse and optionally currency xml) please" )
     sys.exit(1)
 
 csv_file = arguments[0]
-currency_xml_file = arguments[1]
+currency_xml_file = arguments[1] if len(arguments) > 1 else None
 purchases_file = "Purchases.json" 
         
 ## arguments parsed

@@ -6,18 +6,22 @@ from decimal import Decimal
 locale.setlocale(locale.LC_ALL, 'en_us')
 
 arguments = sys.argv[1:]
-if len(arguments) < 2:
-    print( "2 args (csv to parse and currency xml) please" )
+if len(arguments) < 1:
+    print( "1 args (csv to parse and optionally currency xml and/or date for which conversion is made) please" )
     sys.exit(1)
 
 csv_file = arguments[0]
-currency_xml_file = arguments[1]
+args = 1
+currency_xml_file = None
+if len(arguments) > args:
+    if arguments[args].split('.')[-1].lower() == "xml":
+        currency_xml_file = arguments[args]
+        args += 1   
 
 import os
-year = os.path.basename(csv_file).split('_')[0]
-report_date_str = year+'-12-31'
-if len(arguments) == 3:
-    report_date_str = arguments[2]
+name = os.path.basename(csv_file).split('.')[0]
+year = name.split('_')[-1]
+report_date_str = arguments[args] if len(arguments) == args+1 else year+'-12-31'
 
 ## arguments parsed
 ## make currency converter

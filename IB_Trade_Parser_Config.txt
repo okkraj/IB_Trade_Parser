@@ -1,7 +1,7 @@
 {
   "BaseCurr": "EUR",
   "DefaultConvCurr": "USD",
-  "CurrConvXML": "valuuttakurssit.aspx.xml",
+  "CurrConvXML": "",
   "HankintamenoBasic": 0.2,
   "HankintamenoYears": 10,
   "HankintamenoExt": 0.4,
